@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+
+import glob
 import hashlib
 import os
 import sys
@@ -10,10 +12,50 @@ import serial
 program = sys.argv[1]
 program = os.path.abspath(program)
 
-arduino_port = '/dev/cu.wchusbserial640' # raw_input('Arduino port: ')
 
-arduino = serial.Serial(arduino_port)
-time.sleep(2)
+
+def serial_ports():
+    """ Lists serial port names
+
+        :raises EnvironmentError:
+            On unsupported or unknown platforms
+        :returns:
+            A list of the serial ports available on the system
+    """
+    if sys.platform.startswith('win'):
+        ports = ['COM%s' % (i + 1) for i in range(256)]
+    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
+        # this excludes your current terminal "/dev/tty"
+        ports = glob.glob('/dev/tty[A-Za-z]*')
+    elif sys.platform.startswith('darwin'):
+        ports = glob.glob('/dev/tty.*')
+    else:
+        raise EnvironmentError('Unsupported platform')
+
+    result = []
+    for port in ports:
+        try:
+            s = serial.Serial(port)
+            s.close()
+            result.append(port)
+        except (OSError, serial.SerialException):
+            pass
+    return result
+
+
+ports = serial_ports()
+for port in ports:
+    print 'Testing port', port
+    arduino = serial.Serial(port, timeout=1)
+    time.sleep(2)
+    arduino.write('a')
+    line = arduino.read(10)
+    if line.strip() == 'semaphore':
+        print 'Found arduino semaphore at', port
+        break
+else:
+    print 'Arduino semaphone not found'
+    sys.exit(1)
 
 
 md5 = None
@@ -41,9 +83,4 @@ while True:
     except KeyboardInterrupt:
         sys.exit()
 
-
-
 arduino.close()
-
-
-
