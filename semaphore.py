@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 
+import argparse
 import glob
 import os
 import sys
 import time
+
 from subprocess import Popen
 
 import serial
 
-from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 
-program = sys.argv[1]
-program = os.path.abspath(program)
 
 
 def serial_ports():
@@ -48,6 +48,7 @@ def serial_ports():
 class TestRunnerEventHandler(FileSystemEventHandler):
 
     def __init__(self, *args, **kwargs):
+        script_name = kwargs.pop('script_name')
         super(TestRunnerEventHandler, self).__init__(*args, **kwargs)
 
         ports = serial_ports()
@@ -63,13 +64,14 @@ class TestRunnerEventHandler(FileSystemEventHandler):
         else:
             print 'Arduino semaphone not found'
             sys.exit(1)
+        self.program = os.path.abspath(script_name)
 
         self.arduino = arduino
 
     def on_any_event(self, event):
         self.arduino.write('y')
 
-        process = Popen([program])
+        process = Popen([self.program])
         process.wait()
         if process.returncode == 0:
             self.arduino.write('g')
@@ -79,9 +81,19 @@ class TestRunnerEventHandler(FileSystemEventHandler):
 
 def main_loop():
 
+    parser = argparse.ArgumentParser(description=(
+        'Watch for changes in the target directory and control the '
+        ' arduino traffic light.'
+    ))
+    parser.add_argument('--target', help='The target directory to be watched.',
+                        default='.')
+    parser.add_argument('command', help='The command to be executed')
+
+    args = parser.parse_args()
+
     observer = Observer()
-    handler = TestRunnerEventHandler()
-    observer.schedule(handler, 'test/')
+    handler = TestRunnerEventHandler(script_name=args.command)
+    observer.schedule(handler, args.target)
 
     observer.start()
     try:
