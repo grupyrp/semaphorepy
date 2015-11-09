@@ -14,8 +14,6 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 
-
-
 def serial_ports():
     """ Lists serial port names
 
@@ -64,14 +62,20 @@ class TestRunnerEventHandler(FileSystemEventHandler):
         else:
             print 'Arduino semaphone not found'
             sys.exit(1)
-        self.program = os.path.abspath(script_name)
 
         self.arduino = arduino
+        if len(script_name.split(' ')) == 1:
+            self.program = os.path.abspath(script_name)
+        else:
+            self.program = script_name
+
+        # TODO: check if the program exists
+        # TODO: check if the program is executable
 
     def on_any_event(self, event):
         self.arduino.write('y')
 
-        process = Popen([self.program])
+        process = Popen([self.program], shell=True)
         process.wait()
         if process.returncode == 0:
             self.arduino.write('g')
