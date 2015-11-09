@@ -105,7 +105,7 @@ def main_loop():
             time.sleep(0.5)
     except KeyboardInterrupt:
         observer.stop()
-        handler.close()
+        handler.arduino.close()
 
     observer.join()
 
