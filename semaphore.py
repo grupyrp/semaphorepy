@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
 import glob
-import hashlib
 import os
 import sys
 import time
 from subprocess import Popen
 
 import serial
+
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
 
 program = sys.argv[1]
 program = os.path.abspath(program)
@@ -42,47 +45,53 @@ def serial_ports():
     return result
 
 
+class TestRunnerEventHandler(FileSystemEventHandler):
+
+    def __init__(self, *args, **kwargs):
+        super(TestRunnerEventHandler, self).__init__(*args, **kwargs)
+
+        ports = serial_ports()
+        for port in ports:
+            print 'Testing port', port
+            arduino = serial.Serial(port, timeout=1)
+            time.sleep(2)
+            arduino.write('a')
+            line = arduino.read(10)
+            if line.strip() == 'semaphore':
+                print 'Found arduino semaphore at', port
+                break
+        else:
+            print 'Arduino semaphone not found'
+            sys.exit(1)
+
+        self.arduino = arduino
+
+    def on_any_event(self, event):
+        self.arduino.write('y')
+
+        process = Popen([program])
+        process.wait()
+        if process.returncode == 0:
+            self.arduino.write('g')
+        else:
+            self.arduino.write('r')
+
+
 def main_loop():
 
-    ports = serial_ports()
-    for port in ports:
-        print 'Testing port', port
-        arduino = serial.Serial(port, timeout=1)
-        time.sleep(2)
-        arduino.write('a')
-        line = arduino.read(10)
-        if line.strip() == 'semaphore':
-            print 'Found arduino semaphore at', port
-            break
-    else:
-        print 'Arduino semaphone not found'
-        sys.exit(1)
-        md5 = None
-        last_md5 = None
+    observer = Observer()
+    handler = TestRunnerEventHandler()
+    observer.schedule(handler, 'test/')
 
-    while True:
-        time.sleep(0.5)
+    observer.start()
+    try:
+        while True:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        observer.stop()
+        handler.close()
 
-        with open(program) as f:
-            md5 = hashlib.md5(f.read()).hexdigest()
-
-        if md5 == last_md5:
-            continue
-
-        arduino.write('y')
-        last_md5 = md5
-        try:
-            process = Popen([program])
-            process.wait()
-            if process.returncode == 0:
-                arduino.write('g')
-            else:
-                arduino.write('r')
-
-        except KeyboardInterrupt:
-            sys.exit()
-
-    arduino.close()
+    observer.join()
 
 
 if __name__ == '__main__':
