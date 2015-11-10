@@ -47,21 +47,26 @@ class TestRunnerEventHandler(FileSystemEventHandler):
 
     def __init__(self, *args, **kwargs):
         script_name = kwargs.pop('script_name')
+        write_to_file = kwargs.pop('write_to_file')
+
         super(TestRunnerEventHandler, self).__init__(*args, **kwargs)
 
-        ports = serial_ports()
-        for port in ports:
-            print 'Testing port', port
-            arduino = serial.Serial(port, timeout=1)
-            time.sleep(2)
-            arduino.write('a')
-            line = arduino.read(10)
-            if line.strip() == 'semaphore':
-                print 'Found arduino semaphore at', port
-                break
+        if not write_to_file:
+            ports = serial_ports()
+            for port in ports:
+                print 'Testing port', port
+                arduino = serial.Serial(port, timeout=1)
+                time.sleep(2)
+                arduino.write('a')
+                line = arduino.read(10)
+                if line.strip() == 'semaphore':
+                    print 'Found arduino semaphore at', port
+                    break
+            else:
+                print 'Arduino semaphone not found'
+                sys.exit(1)
         else:
-            print 'Arduino semaphone not found'
-            sys.exit(1)
+            arduino = open(write_to_file, 'a')
 
         self.arduino = arduino
         if len(script_name.split(' ')) == 1:
@@ -82,6 +87,10 @@ class TestRunnerEventHandler(FileSystemEventHandler):
         else:
             self.arduino.write('r')
 
+        # Needed mainly because of test file
+        #   (check write_to_file argument)
+        self.arduino.flush()
+
 
 def main_loop():
 
@@ -91,12 +100,17 @@ def main_loop():
     ))
     parser.add_argument('--target', help='The target directory to be watched.',
                         default='.')
+    parser.add_argument('--write-to-file', default=None, help=(
+        'Write to given file instead of serial port. '
+        'Mainly used for test and debugging.'
+    ))
     parser.add_argument('command', help='The command to be executed')
 
     args = parser.parse_args()
 
     observer = Observer()
-    handler = TestRunnerEventHandler(script_name=args.command)
+    handler = TestRunnerEventHandler(script_name=args.command,
+                                     write_to_file=args.write_to_file)
     observer.schedule(handler, args.target)
 
     observer.start()
