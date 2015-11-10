@@ -54,16 +54,16 @@ class TestRunnerEventHandler(FileSystemEventHandler):
         if not write_to_file:
             ports = serial_ports()
             for port in ports:
-                print 'Testing port', port
+                print('Testing port', port)
                 arduino = serial.Serial(port, timeout=1)
                 time.sleep(2)
                 arduino.write('a')
                 line = arduino.read(10)
                 if line.strip() == 'semaphore':
-                    print 'Found arduino semaphore at', port
+                    print('Found arduino semaphore at', port)
                     break
             else:
-                print 'Arduino semaphone not found'
+                print('Arduino semaphone not found')
                 sys.exit(1)
         else:
             arduino = open(write_to_file, 'a')
