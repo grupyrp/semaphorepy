@@ -6,6 +6,7 @@ import os
 import sys
 import time
 
+from fnmatch import fnmatch
 from subprocess import Popen
 
 import serial
@@ -54,13 +55,13 @@ class TestRunnerEventHandler(FileSystemEventHandler):
         if not write_to_file:
             ports = serial_ports()
             for port in ports:
-                print('Testing port', port)
+                print('Testing port: {}'.format(port))
                 arduino = serial.Serial(port, timeout=1)
                 time.sleep(2)
                 arduino.write('a')
                 line = arduino.read(10)
                 if line.strip() == 'semaphore':
-                    print('Found arduino semaphore at', port)
+                    print('Found arduino semaphore at {}'.format(port))
                     break
             else:
                 print('Arduino semaphone not found')
@@ -78,6 +79,19 @@ class TestRunnerEventHandler(FileSystemEventHandler):
         # TODO: check if the program is executable
 
     def on_any_event(self, event):
+        if event.is_directory:
+            return
+
+        ignore_list = ['*.swp', '*.swo', '.git/']
+        for ignore_pattern in ignore_list:
+            if fnmatch(event.src_path, ignore_pattern):
+                return
+
+            if event.src_path.startswith('./' + ignore_pattern):
+                return
+
+        print('File changed: {}'.format(event.src_path))
+
         self.arduino.write('y')
 
         process = Popen([self.program], shell=True)
@@ -111,7 +125,7 @@ def main_loop():
     observer = Observer()
     handler = TestRunnerEventHandler(script_name=args.command,
                                      write_to_file=args.write_to_file)
-    observer.schedule(handler, args.target)
+    observer.schedule(handler, args.target, recursive=True)
 
     observer.start()
     try:
